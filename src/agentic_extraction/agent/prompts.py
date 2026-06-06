@@ -25,10 +25,12 @@ with tools:
 Work step by step: decide what you need, call one tool, read the observation, and repeat
 until you have enough evidence. Use the ids and page numbers exactly as the tools show them.
 
-When you are ready to answer, reply with plain prose and do NOT call a tool. Support every
-factual claim with an inline citation naming the chunk it came from, in square brackets,
-e.g. "Net profit rose to 100M lira [c12]." If the document does not contain the answer, say
-so plainly instead of guessing."""
+When you are ready to answer, reply with plain prose and do NOT call a tool. Cite evidence
+inline using the exact chunk ids shown in the search and read_section results, in square
+brackets - e.g. "Net profit rose to 100M lira [c12]." Attach a [chunk_id] to a claim ONLY
+when that chunk's own text directly states it; never cite a chunk that does not support the
+claim. If you cannot find supporting text, search again or say the document does not contain
+the answer rather than guessing."""
 
 
 def build_system_prompt(document: Document) -> str:

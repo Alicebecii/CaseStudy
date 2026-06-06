@@ -149,3 +149,11 @@ def test_agent_dedupes_citations_in_order() -> None:
     llm = MockLLMProvider(responses=["A [c3] then B [c0] then again [c3]."])
     answer = _agent(llm).answer("q")
     assert answer.cited_chunk_ids == ("c3", "c0")
+
+
+def test_agent_resolves_chunk_ids_regardless_of_formatting() -> None:
+    # The model wraps the id ("[Chunk c2]") and adds a page ref ("[p9]") and a section ref
+    # ("[1.3.1]"). Only the real chunk id should resolve.
+    llm = MockLLMProvider(responses=["See [Chunk c2] on [p9] in section [1.3.1]."])
+    answer = _agent(llm).answer("q")
+    assert answer.cited_chunk_ids == ("c2",)

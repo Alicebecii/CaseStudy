@@ -29,8 +29,10 @@ from ..core.models import (
     ToolSpec,
 )
 
-# Citations are inline [chunk_id] markers; ids look like c0, c12, etc. (leading letter).
-_CITATION_RE = re.compile(r"\[([A-Za-z][\w\-]*)\]")
+# Citations are resolved by matching word tokens in the answer against the document's real
+# chunk ids, so a model that writes "[c91]", "[Chunk c91]", or "see c91" all resolve, while
+# section refs like "[1.3.1]" or page refs like "[p16]" correctly do not.
+_TOKEN_RE = re.compile(r"\w+")
 _ARG_PREVIEW_CHARS = 60
 
 
@@ -43,12 +45,14 @@ class ReActAgent:
         tools: Sequence[Tool],
         settings: Settings,
         system_prompt: str,
+        valid_chunk_ids: frozenset[str] = frozenset(),
     ) -> None:
         self._llm = llm
         self._tools_by_name = {tool.spec.name: tool for tool in tools}
         self._tool_specs: tuple[ToolSpec, ...] = tuple(tool.spec for tool in tools)
         self._max_steps = settings.max_steps
         self._system_prompt = system_prompt
+        self._valid_chunk_ids = valid_chunk_ids
 
     def answer(self, question: str, feedback: str | None = None) -> AgentAnswer:
         messages = [
@@ -119,12 +123,16 @@ class ReActAgent:
         except Exception as exc:  # noqa: BLE001 - a tool bug becomes an observation, not a crash
             return ToolResult(content=f"Tool {call.name!r} raised: {exc}", ok=False)
 
-    @staticmethod
-    def _extract_citations(text: str) -> tuple[str, ...]:
-        """Pull inline [chunk_id] citations from the answer, de-duplicated in order."""
+    def _extract_citations(self, text: str) -> tuple[str, ...]:
+        """Resolve citations by matching answer tokens against real chunk ids, in order.
+
+        Matching against the known ids (rather than a bracket pattern) is robust to how the
+        model formats a citation, and never mistakes a section or page reference for a chunk.
+        """
         seen: dict[str, None] = {}
-        for match in _CITATION_RE.findall(text):
-            seen.setdefault(match, None)
+        for token in _TOKEN_RE.findall(text):
+            if token in self._valid_chunk_ids:
+                seen.setdefault(token, None)
         return tuple(seen)
 
 

@@ -67,6 +67,26 @@ def test_unresolved_citation_reported_in_detail() -> None:
     assert result.verdict is Verdict.GROUNDED  # c1 still grounds the statement
 
 
+def test_paraphrased_answer_is_credited_as_grounded() -> None:
+    # Reworded, not copied - but it reuses the source's distinctive content terms, so the
+    # coverage metric should still consider it grounded (not punished for paraphrase).
+    chunk = Chunk(id="c0", text="The dataset contains exactly 10000 labelled training samples.",
+                  section_path=("Data",), page=0)
+    answer = _answer("There are 10000 labelled samples used for training in the dataset [c0].", ("c0",))
+    result = GroundingValidator().validate(answer, {"c0": chunk})
+    assert result.verdict is Verdict.GROUNDED
+
+
+def test_sentence_splitter_keeps_dotted_tokens_whole() -> None:
+    # Periods inside requirements.txt and 1.3.1 must not shatter the statement into the
+    # garbage fragments ("txt", "3") the old splitter produced.
+    answer = _answer("Install via requirements.txt then run version 1.3.1 [c0].", ("c0",))
+    result = GroundingValidator().validate(answer, CHUNKS_BY_ID)  # unrelated chunk -> flagged
+    claims = result.unsupported_claims
+    assert any("requirements.txt" in claim for claim in claims)
+    assert not any(claim.strip() in {"txt", "3", "toml"} for claim in claims)
+
+
 def test_create_validator_returns_grounding_validator() -> None:
     assert isinstance(create_validator(Settings()), GroundingValidator)
 

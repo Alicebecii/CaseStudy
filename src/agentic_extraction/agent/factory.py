@@ -23,4 +23,11 @@ def create_agent(
     """Build a :class:`ReActAgent` with the document's tools and system prompt."""
     tools = build_tools(document, retriever, settings)
     system_prompt = build_system_prompt(document)
-    return ReActAgent(llm=llm, tools=tools, settings=settings, system_prompt=system_prompt)
+    valid_chunk_ids = frozenset(chunk.id for chunk in document.chunks)
+    return ReActAgent(
+        llm=llm,
+        tools=tools,
+        settings=settings,
+        system_prompt=system_prompt,
+        valid_chunk_ids=valid_chunk_ids,
+    )
