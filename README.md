@@ -57,6 +57,11 @@ LLM_PROVIDER=openai OPENAI_API_KEY=sk-... agentic-extract --pdf doc.pdf --questi
 agentic-extract --pdf doc.pdf --question "..."
 ```
 
+Optional capabilities, all opt-in and off by default:
+`ENABLE_SPECIALIST=1` adds a specialist sub-agent the main agent can delegate to;
+`OLLAMA_VISION_MODEL=llava` (after `ollama pull llava`) adds a `view_page` tool that renders
+a page and asks a vision model about figures/tables; `--memory PATH` enables cross-run memory.
+
 ## Demo
 
 [`examples/demo_output.md`](examples/demo_output.md) is a real, unedited run of the
@@ -93,6 +98,7 @@ src/agentic_extraction/
   agent/         four navigation tools and the from-scratch ReAct orchestrator
   validator/     deterministic grounding check + optional LLM critic
   memory/        cross-run memory store (recall/record, opt-in via --memory)
+  evaluation.py  scoring of answers against a gold Q&A set
   cli.py         command line entry point
 examples/        run_demo.py + captured demo_output.md (+ a CC-BY sample paper)
 tests/           offline unit tests for every layer

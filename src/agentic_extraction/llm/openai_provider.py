@@ -96,6 +96,17 @@ def _encode_message(message: Message) -> dict[str, object]:
                 for index, call in enumerate(message.tool_calls)
             ],
         }
+    if message.images:
+        # OpenAI vision: content becomes an array of text + image_url (data URI) blocks.
+        blocks: list[dict[str, object]] = []
+        if message.content:
+            blocks.append({"type": "text", "text": message.content})
+        for image in message.images:
+            blocks.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:{image.media_type};base64,{image.data_base64}"},
+            })
+        return {"role": message.role.value, "content": blocks}
     return {"role": message.role.value, "content": message.content}
 
 

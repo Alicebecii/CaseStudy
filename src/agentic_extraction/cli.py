@@ -21,7 +21,7 @@ from .agent import create_agent
 from .config import Settings
 from .core.errors import AgenticExtractionError
 from .core.models import Chunk, ValidatedAnswer
-from .llm import create_llm_provider
+from .llm import create_llm_provider, create_vision_llm
 from .memory import JsonMemoryStore
 from .preprocessing import load_document, outline_to_dict
 from .retrieval import create_retriever
@@ -45,7 +45,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         retriever = create_retriever(document, settings)
         llm = create_llm_provider(settings)
-        agent = create_agent(document, retriever, llm, settings)
+        vision_llm = create_vision_llm(settings)
+        agent = create_agent(document, retriever, llm, settings, vision_llm=vision_llm)
         validator = create_validator(settings, llm)
         memory = JsonMemoryStore(args.memory) if args.memory else None
         result = answer_with_validation(agent, validator, document, args.question, memory=memory)

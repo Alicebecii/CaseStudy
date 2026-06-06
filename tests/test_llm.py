@@ -15,6 +15,7 @@ import pytest
 from agentic_extraction.config import ProviderName, Settings
 from agentic_extraction.core.errors import LLMError
 from agentic_extraction.core.models import (
+    ImageRef,
     LLMResponse,
     Message,
     Role,
@@ -222,6 +223,15 @@ def test_ollama_wraps_malformed_body_in_llmerror() -> None:
         provider.complete([Message(role=Role.USER, content="q")])
 
 
+def test_ollama_encodes_images_on_user_message() -> None:
+    session = _FakeSession(_FakeResponse({"message": {"content": "a chart"}}))
+    provider = OllamaLLMProvider(session=session)
+    provider.complete([Message(role=Role.USER, content="describe", images=(ImageRef("QUJD"),))])
+    sent = session.last_json["messages"][-1]
+    assert sent["content"] == "describe"
+    assert sent["images"] == ["QUJD"]  # raw base64 array, Ollama's vision format
+
+
 # -------------------------------------------------------------------------- openai
 
 
@@ -316,6 +326,16 @@ def test_openai_bad_tool_arguments_raise_llmerror() -> None:
     provider = OpenAILLMProvider(client=_FakeClient(message))
     with pytest.raises(LLMError):
         provider.complete([Message(role=Role.USER, content="q")])
+
+
+def test_openai_encodes_images_as_content_blocks() -> None:
+    client = _FakeClient(_FakeMessage(content="a chart"))
+    provider = OpenAILLMProvider(client=client)
+    provider.complete([Message(role=Role.USER, content="describe", images=(ImageRef("QUJD", "image/png"),))])
+    content = client.received["messages"][0]["content"]
+    assert content[0] == {"type": "text", "text": "describe"}
+    assert content[1]["type"] == "image_url"
+    assert content[1]["image_url"]["url"] == "data:image/png;base64,QUJD"
 
 
 def test_openai_without_package_or_key_raises_llmerror() -> None:

@@ -15,6 +15,7 @@ from agentic_extraction.agent.tools import (
     ReadSectionTool,
     SearchTool,
     SpecialistAgentTool,
+    ViewPageTool,
 )
 from agentic_extraction.config import Settings
 from agentic_extraction.core.models import Chunk, Document, Section, ToolCall
@@ -188,6 +189,41 @@ def test_specialist_tool_delegates_and_returns_findings() -> None:
     result = SpecialistAgentTool(specialist).run(sub_question="How big is the dataset?")
     assert result.ok
     assert "[c2]" in result.content and "Cited: c2" in result.content
+
+
+# ---------------------------------------------------------------------------- vision
+
+
+def test_build_tools_with_vision_adds_view_page() -> None:
+    tools = build_tools(
+        _document(), BM25Retriever(_document().chunks), Settings(), vision_llm=MockLLMProvider()
+    )
+    assert "view_page" in {t.spec.name for t in tools}
+
+
+def test_view_page_tool_renders_and_calls_vision(tmp_path) -> None:
+    import pytest
+    fitz = pytest.importorskip("fitz")
+    pdf = tmp_path / "p.pdf"
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 72), "Figure 1: a revenue chart", fontsize=14)
+    doc.save(str(pdf))
+    doc.close()
+
+    document = Document(source_path=str(pdf), n_pages=1, chunks=(), outline=())
+    vision = MockLLMProvider(responses=["A bar chart of revenue by year."])
+    result = ViewPageTool(document, vision).run(page=0, question="What does the figure show?")
+
+    assert result.ok
+    assert result.content == "A bar chart of revenue by year."
+    # The vision LLM was sent a message carrying a non-empty rendered image.
+    sent_messages = vision.calls[0][0]
+    assert sent_messages[0].images and sent_messages[0].images[0].data_base64
+
+
+def test_view_page_tool_rejects_out_of_range() -> None:
+    document = Document(source_path="x.pdf", n_pages=2, chunks=(), outline=())
+    assert ViewPageTool(document, MockLLMProvider()).run(page=5, question="?").ok is False
 
 
 def test_system_prompt_mentions_specialist_only_when_enabled() -> None:

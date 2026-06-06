@@ -12,7 +12,7 @@ Callers should not construct these directly. Use :func:`create_llm_provider`, wh
 
 from __future__ import annotations
 
-from .factory import create_llm_provider
+from .factory import create_llm_provider, create_vision_llm
 from .mock_provider import MockLLMProvider
 from .ollama_provider import OllamaLLMProvider
 from .openai_provider import OpenAILLMProvider
@@ -24,6 +24,7 @@ from .tool_protocol import (
 
 __all__ = [
     "create_llm_provider",
+    "create_vision_llm",
     "MockLLMProvider",
     "OllamaLLMProvider",
     "OpenAILLMProvider",

@@ -118,7 +118,11 @@ class OllamaLLMProvider(LLMProvider):
                     content = message.content
                 encoded.append({"role": "assistant", "content": content})
             else:  # Role.USER
-                encoded.append({"role": "user", "content": message.content})
+                user_message: dict[str, object] = {"role": "user", "content": message.content}
+                if message.images:
+                    # Ollama's /api/chat takes a per-message array of raw base64 images.
+                    user_message["images"] = [image.data_base64 for image in message.images]
+                encoded.append(user_message)
 
         # If there was no system message to fold the tool menu into, add one up front.
         if tools_block and not injected:

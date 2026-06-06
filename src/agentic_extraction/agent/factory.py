@@ -19,12 +19,13 @@ def create_agent(
     retriever: Retriever,
     llm: LLMProvider,
     settings: Settings,
+    vision_llm: LLMProvider | None = None,
 ) -> ReActAgent:
     """Build a :class:`ReActAgent` with the document's tools and system prompt.
 
     When ``settings.enable_specialist`` is set, a focused specialist sub-agent is built
-    (from the *base* tools only, so it cannot recurse) and exposed to the main agent as an
-    ``ask_specialist`` tool.
+    (from the *base* tools only, so it cannot recurse) and exposed as an ``ask_specialist``
+    tool. When ``vision_llm`` is given, a ``view_page`` tool is added for visual content.
     """
     valid_chunk_ids = frozenset(chunk.id for chunk in document.chunks)
 
@@ -38,7 +39,7 @@ def create_agent(
             valid_chunk_ids=valid_chunk_ids,
         )
 
-    tools = build_tools(document, retriever, settings, specialist=specialist)
+    tools = build_tools(document, retriever, settings, specialist=specialist, vision_llm=vision_llm)
     return ReActAgent(
         llm=llm,
         tools=tools,

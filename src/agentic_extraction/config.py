@@ -57,6 +57,8 @@ class Settings:
     # Ollama (local model on the remote server)
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5"
+    # Optional vision model (e.g. "llava"); empty disables the view_page tool.
+    ollama_vision_model: str = ""
 
     # OpenAI (final verification run)
     openai_model: str = "gpt-4o-mini"
@@ -94,6 +96,7 @@ class Settings:
             llm_provider=provider,
             ollama_host=os.environ.get("OLLAMA_HOST", Settings.ollama_host),
             ollama_model=os.environ.get("OLLAMA_MODEL", Settings.ollama_model),
+            ollama_vision_model=os.environ.get("OLLAMA_VISION_MODEL", Settings.ollama_vision_model),
             openai_model=os.environ.get("OPENAI_MODEL", Settings.openai_model),
             openai_api_key=os.environ.get("OPENAI_API_KEY", Settings.openai_api_key),
             embedding_model=os.environ.get("EMBEDDING_MODEL", Settings.embedding_model),

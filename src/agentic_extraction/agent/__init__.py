@@ -18,6 +18,7 @@ from .tools import (
     ReadSectionTool,
     SearchTool,
     SpecialistAgentTool,
+    ViewPageTool,
     build_tools,
 )
 
@@ -30,4 +31,5 @@ __all__ = [
     "ReadSectionTool",
     "ReadPageTool",
     "SpecialistAgentTool",
+    "ViewPageTool",
 ]

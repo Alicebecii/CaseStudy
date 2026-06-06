@@ -16,6 +16,18 @@ from .ollama_provider import OllamaLLMProvider
 from .openai_provider import OpenAILLMProvider
 
 
+def create_vision_llm(settings: Settings) -> LLMProvider | None:
+    """Build the vision LLM, or None when no vision model is configured.
+
+    A vision model is just an Ollama backend pointed at ``settings.ollama_vision_model``
+    (e.g. "llava"); when that is empty, vision is disabled and the view_page tool is absent.
+    Auto-detection mirrors how dense retrieval is enabled only when available.
+    """
+    if not settings.ollama_vision_model:
+        return None
+    return OllamaLLMProvider(host=settings.ollama_host, model=settings.ollama_vision_model)
+
+
 def create_llm_provider(settings: Settings) -> LLMProvider:
     """Build the LLM backend named by ``settings.llm_provider``."""
     provider = settings.llm_provider

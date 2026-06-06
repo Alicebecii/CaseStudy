@@ -103,11 +103,21 @@ class ToolCall:
 
 
 @dataclass(frozen=True)
+class ImageRef:
+    """An image attached to a message, as base64-encoded bytes (for vision models)."""
+
+    data_base64: str
+    media_type: str = "image/png"
+
+
+@dataclass(frozen=True)
 class Message:
     """One message in an LLM conversation.
 
     For ``TOOL`` role messages, ``name`` is the tool that ran and
-    ``tool_call_id`` links the result back to the originating call.
+    ``tool_call_id`` links the result back to the originating call. ``images`` carries any
+    attached images for a vision model; it defaults to empty, so text-only callers are
+    unaffected and only vision-capable backends ever look at it.
     """
 
     role: Role
@@ -115,6 +125,7 @@ class Message:
     tool_calls: tuple[ToolCall, ...] = ()
     name: str = ""
     tool_call_id: str = ""
+    images: tuple[ImageRef, ...] = ()
 
 
 @dataclass(frozen=True)
