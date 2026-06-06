@@ -20,6 +20,7 @@ from agentic_extraction.preprocessing import (
     chunk,
     detect_headings,
     load_document,
+    outline_to_dict,
     parse,
     section_paths,
 )
@@ -177,6 +178,21 @@ def test_build_outline_nests_by_level() -> None:
     assert outline[0].id == "1" and outline[0].title == "Title"
     assert [c.id for c in outline[0].children] == ["1.1", "1.2"]
     assert outline[0].children[1].title == "Section B"
+
+
+def test_outline_to_dict_is_json_ready_and_nested() -> None:
+    headings = (
+        Heading("Title", level=1, page=0, line_index=0),
+        Heading("Section A", level=2, page=1, line_index=1),
+    )
+    outline = build_outline(headings)
+    as_dict = outline_to_dict(outline)
+    assert as_dict[0]["id"] == "1" and as_dict[0]["title"] == "Title"
+    assert as_dict[0]["children"][0] == {
+        "id": "1.1", "title": "Section A", "level": 2, "page_start": 1, "children": []
+    }
+    import json
+    json.dumps(as_dict)  # must be serialisable without error
 
 
 def test_section_paths_track_ancestry() -> None:

@@ -216,8 +216,7 @@ feature.
 
 ### 3.6 Memory: is cross-task learning possible? How?
 
-Yes, and the seam for it exists in the MVP (`memory/store.py`) even though deep memory is
-a bonus. Two useful, distinct scopes:
+Yes. Two useful, distinct scopes:
 
 - **Within a run (working memory):** the ReAct transcript, that is every
   think/act/observe step, is the agent's short-term memory and is what lets it
@@ -227,6 +226,12 @@ a bonus. Two useful, distinct scopes:
   near-duplicate questions, and (b) seed retrieval with chunks that previously answered
   related questions. We keep it as an explicit, inspectable store rather than an opaque
   vector cache so its effect on answers stays auditable, consistent with principle #4.
+
+The long-term store ships in the MVP as a functional extension point
+(`memory/store.py`: an append-only `JsonMemoryStore` behind the `MemoryStore` contract,
+with `record`/`recall`). It is tested on its own but not yet wired into the loop - doing
+that wiring (recall-to-short-cut, retrieval seeding above) is the cross-task-learning
+bonus, and the store is what makes it a small addition rather than a redesign.
 
 ---
 

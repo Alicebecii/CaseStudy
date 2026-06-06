@@ -13,6 +13,7 @@ here and shown as a clean one-line message with a non-zero exit code, never a st
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Sequence
 
@@ -21,7 +22,7 @@ from .config import Settings
 from .core.errors import AgenticExtractionError
 from .core.models import Chunk, ValidatedAnswer
 from .llm import create_llm_provider
-from .preprocessing import load_document
+from .preprocessing import load_document, outline_to_dict
 from .retrieval import create_retriever
 from .validator import answer_with_validation, create_validator
 
@@ -32,6 +33,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         settings = Settings.from_env()
         document = load_document(args.pdf, settings)
+
+        if args.outline_json:
+            print(json.dumps(outline_to_dict(document.outline), indent=2, ensure_ascii=False))
+            return 0
+
+        if not args.question:
+            print("error: --question is required (or use --outline-json)", file=sys.stderr)
+            return 1
+
         retriever = create_retriever(document, settings)
         llm = create_llm_provider(settings)
         agent = create_agent(document, retriever, llm, settings)
@@ -52,11 +62,16 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "and validates its own answer.",
     )
     parser.add_argument("--pdf", required=True, help="Path to the PDF to query.")
-    parser.add_argument("--question", required=True, help="The question to answer.")
+    parser.add_argument("--question", help="The question to answer.")
     parser.add_argument(
         "--show-trace",
         action="store_true",
         help="Print the agent's step-by-step reasoning trace.",
+    )
+    parser.add_argument(
+        "--outline-json",
+        action="store_true",
+        help="Print the document's structured outline as JSON and exit (no question needed).",
     )
     return parser.parse_args(argv)
 

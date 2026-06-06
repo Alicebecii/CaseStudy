@@ -54,6 +54,24 @@ def _toc_is_degenerate(toc: Sequence[TocEntry], parsed: ParsedDocument) -> bool:
     return len(toc) < _MIN_USABLE_TOC_ENTRIES and parsed.n_pages > _SHORT_DOC_PAGES
 
 
+def outline_to_dict(sections: Sequence[Section]) -> list[dict]:
+    """Serialise the section tree to a JSON-ready nested structure.
+
+    This is the structured-outline export: ``json.dumps`` of the result is a hierarchical
+    representation of the document's table of contents (id, title, level, page, children).
+    """
+    return [
+        {
+            "id": section.id,
+            "title": section.title,
+            "level": section.level,
+            "page_start": section.page_start,
+            "children": outline_to_dict(section.children),
+        }
+        for section in sections
+    ]
+
+
 def build_outline(headings: Sequence[Heading]) -> tuple[Section, ...]:
     """Build the nested :class:`Section` tree from a flat heading list.
 

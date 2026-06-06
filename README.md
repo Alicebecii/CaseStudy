@@ -31,6 +31,8 @@ mock LLM backend, so it works offline with no model download and no API key.
 agentic-extract --pdf path/to/document.pdf --question "Your question?"
 # show the agent's step-by-step reasoning:
 agentic-extract --pdf path/to/document.pdf --question "Your question?" --show-trace
+# dump the document's structured outline as JSON (no question needed):
+agentic-extract --pdf path/to/document.pdf --outline-json
 ```
 
 The command prints the answer, its sources (cited chunk → page and section), and a
@@ -87,6 +89,7 @@ src/agentic_extraction/
   llm/           pluggable LLM backends (mock, ollama, openai) + tool protocol
   agent/         four navigation tools and the from-scratch ReAct orchestrator
   validator/     deterministic grounding check + optional LLM critic
+  memory/        cross-run memory store (extension point)
   cli.py         command line entry point
 examples/        run_demo.py + captured demo_output.md (+ a CC-BY sample paper)
 tests/           offline unit tests for every layer

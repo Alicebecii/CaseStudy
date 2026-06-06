@@ -17,6 +17,7 @@ from .models import (
     AgentAnswer,
     Chunk,
     LLMResponse,
+    MemoryRecord,
     Message,
     ScoredChunk,
     ToolResult,
@@ -91,4 +92,23 @@ class Validator(ABC):
         chunks_by_id: dict[str, Chunk],
     ) -> Validation:
         """Return a grounding verdict for ``answer`` given the cited chunks."""
+        raise NotImplementedError
+
+
+class MemoryStore(ABC):
+    """Cross-run memory: persists answered questions per document (extension point).
+
+    Records the outcome of a question so a later run can recall related prior answers.
+    Kept as an explicit, inspectable store rather than an opaque vector cache (DESIGN.md
+    §3.6). Implementations live in :mod:`agentic_extraction.memory`.
+    """
+
+    @abstractmethod
+    def record(self, record: MemoryRecord) -> None:
+        """Persist one answered-question record."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def recall(self, document_id: str, question: str, limit: int = 3) -> list[MemoryRecord]:
+        """Return prior records for a document, most relevant to ``question`` first."""
         raise NotImplementedError

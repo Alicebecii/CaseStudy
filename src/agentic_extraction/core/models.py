@@ -191,3 +191,19 @@ class ValidatedAnswer:
     answer: AgentAnswer
     validation: Validation
     attempts: int = 1
+
+
+@dataclass(frozen=True)
+class MemoryRecord:
+    """A persisted question/answer outcome, for cross-run memory (DESIGN.md §3.6).
+
+    Stored per document so a later run can recall how related questions were answered.
+    Kept as an explicit, inspectable record rather than an opaque cache.
+    """
+
+    document_id: str
+    question: str
+    answer: str
+    verdict: str
+    confidence: float
+    cited_chunk_ids: tuple[str, ...] = ()

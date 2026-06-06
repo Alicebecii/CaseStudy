@@ -49,6 +49,24 @@ def test_cli_show_trace_prints_steps(tmp_path, capsys) -> None:
     assert "final answer" in out
 
 
+def test_cli_outline_json_prints_structure_and_exits(tmp_path, capsys) -> None:
+    import json
+    pdf = _make_pdf(tmp_path / "report.pdf")
+    code = cli.main(["--pdf", pdf, "--outline-json"])
+    out = capsys.readouterr().out
+    assert code == 0
+    parsed = json.loads(out)  # valid JSON
+    assert "Revenue" in json.dumps(parsed)  # the heading appears in the structure
+
+
+def test_cli_requires_question_without_outline_json(tmp_path, capsys) -> None:
+    pdf = _make_pdf(tmp_path / "report.pdf")
+    code = cli.main(["--pdf", pdf])  # no question, no outline-json
+    err = capsys.readouterr().err
+    assert code == 1
+    assert "question" in err
+
+
 def test_cli_reports_bad_pdf_cleanly(tmp_path, capsys) -> None:
     bad = tmp_path / "not.pdf"
     bad.write_text("plain text, not a pdf")

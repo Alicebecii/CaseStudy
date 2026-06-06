@@ -13,7 +13,7 @@ from __future__ import annotations
 from .chunker import chunk
 from .loader import load_document
 from .models import Heading, ParsedDocument, TextLine, TocEntry
-from .outline import build_outline, detect_headings, section_paths
+from .outline import build_outline, detect_headings, outline_to_dict, section_paths
 from .pdf_parser import parse
 
 __all__ = [
@@ -21,6 +21,7 @@ __all__ = [
     "parse",
     "detect_headings",
     "build_outline",
+    "outline_to_dict",
     "section_paths",
     "chunk",
     "ParsedDocument",
