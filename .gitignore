@@ -14,6 +14,10 @@ env/
 # Local configuration and secrets
 .env
 
+# Confidential: the assignment brief PDF lives at the repo root but is never committed.
+# (The redistributable sample paper under examples/data/ is committed deliberately.)
+/*.pdf
+
 # Caches
 .pytest_cache/
 .mypy_cache/

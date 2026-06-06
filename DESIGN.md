@@ -1,6 +1,6 @@
 # Architecture Design: Agentic Multi-Modal Document Q&A
 
-**Author:** Case study submission · **Status:** Design (written before implementation)
+**Author:** Seyyid Ali Cebeci · **Status:** Design (written before implementation)
 
 This document is the primary deliverable. It explains *what* we build, but more
 importantly *why* each component is shaped the way it is and *what we traded away*.
