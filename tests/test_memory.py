@@ -42,3 +42,24 @@ def test_recall_ranks_by_question_similarity(tmp_path) -> None:
 
 def test_recall_on_empty_store_is_safe(tmp_path) -> None:
     assert JsonMemoryStore(tmp_path / "missing.jsonl").recall("doc1", "q") == []
+
+
+def test_best_match_returns_record_and_score(tmp_path) -> None:
+    store = JsonMemoryStore(tmp_path / "m.jsonl")
+    store.record(_record("doc1", "How many employees work at the bank?"))
+    store.record(_record("doc1", "What was the total revenue in 2023?"))
+    hit = store.best_match("doc1", "tell me the revenue total for 2023")
+    assert hit is not None
+    record, similarity = hit
+    assert record.question == "What was the total revenue in 2023?"
+    assert 0.0 < similarity <= 1.0
+
+
+def test_best_match_empty_returns_none(tmp_path) -> None:
+    assert JsonMemoryStore(tmp_path / "m.jsonl").best_match("doc1", "q") is None
+
+
+def test_best_match_filters_by_document(tmp_path) -> None:
+    store = JsonMemoryStore(tmp_path / "m.jsonl")
+    store.record(_record("doc1", "revenue question"))
+    assert store.best_match("doc2", "revenue question") is None

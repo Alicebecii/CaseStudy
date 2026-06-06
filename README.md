@@ -33,6 +33,9 @@ agentic-extract --pdf path/to/document.pdf --question "Your question?"
 agentic-extract --pdf path/to/document.pdf --question "Your question?" --show-trace
 # dump the document's structured outline as JSON (no question needed):
 agentic-extract --pdf path/to/document.pdf --outline-json
+# enable cross-run memory: recall a prior grounded answer to a near-duplicate
+# question (served instantly), and record each outcome for next time:
+agentic-extract --pdf path/to/document.pdf --question "..." --memory mem.jsonl
 ```
 
 The command prints the answer, its sources (cited chunk → page and section), and a
@@ -89,7 +92,7 @@ src/agentic_extraction/
   llm/           pluggable LLM backends (mock, ollama, openai) + tool protocol
   agent/         four navigation tools and the from-scratch ReAct orchestrator
   validator/     deterministic grounding check + optional LLM critic
-  memory/        cross-run memory store (extension point)
+  memory/        cross-run memory store (recall/record, opt-in via --memory)
   cli.py         command line entry point
 examples/        run_demo.py + captured demo_output.md (+ a CC-BY sample paper)
 tests/           offline unit tests for every layer

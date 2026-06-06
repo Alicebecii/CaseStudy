@@ -22,6 +22,7 @@ from .config import Settings
 from .core.errors import AgenticExtractionError
 from .core.models import Chunk, ValidatedAnswer
 from .llm import create_llm_provider
+from .memory import JsonMemoryStore
 from .preprocessing import load_document, outline_to_dict
 from .retrieval import create_retriever
 from .validator import answer_with_validation, create_validator
@@ -46,7 +47,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         llm = create_llm_provider(settings)
         agent = create_agent(document, retriever, llm, settings)
         validator = create_validator(settings, llm)
-        result = answer_with_validation(agent, validator, document, args.question)
+        memory = JsonMemoryStore(args.memory) if args.memory else None
+        result = answer_with_validation(agent, validator, document, args.question, memory=memory)
     except AgenticExtractionError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -72,6 +74,11 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--outline-json",
         action="store_true",
         help="Print the document's structured outline as JSON and exit (no question needed).",
+    )
+    parser.add_argument(
+        "--memory",
+        metavar="PATH",
+        help="Enable cross-run memory at this JSONL path (recall + record answers).",
     )
     return parser.parse_args(argv)
 

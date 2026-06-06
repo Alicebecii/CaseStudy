@@ -112,3 +112,12 @@ class MemoryStore(ABC):
     def recall(self, document_id: str, question: str, limit: int = 3) -> list[MemoryRecord]:
         """Return prior records for a document, most relevant to ``question`` first."""
         raise NotImplementedError
+
+    @abstractmethod
+    def best_match(self, document_id: str, question: str) -> tuple[MemoryRecord, float] | None:
+        """Return the single most-similar prior record and its [0,1] similarity, or None.
+
+        Lets a caller decide whether a prior answer is close enough to reuse, without the
+        caller having to re-implement the similarity ranking.
+        """
+        raise NotImplementedError

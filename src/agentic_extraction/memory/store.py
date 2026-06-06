@@ -43,6 +43,17 @@ class JsonMemoryStore(MemoryStore):
         )
         return for_document[:limit]
 
+    def best_match(self, document_id: str, question: str) -> tuple[MemoryRecord, float] | None:
+        question_terms = _terms(question)
+        best: tuple[MemoryRecord, float] | None = None
+        for record in self._read():
+            if record.document_id != document_id:
+                continue
+            similarity = _overlap(question_terms, _terms(record.question))
+            if best is None or similarity > best[1]:
+                best = (record, similarity)
+        return best
+
     def _read(self) -> list[MemoryRecord]:
         if not self._path.exists():
             return []

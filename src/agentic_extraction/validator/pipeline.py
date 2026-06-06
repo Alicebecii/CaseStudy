@@ -13,8 +13,15 @@ as confident fact.
 
 from __future__ import annotations
 
-from ..core.interfaces import Validator
-from ..core.models import AgentAnswer, Document, ValidatedAnswer, Validation, Verdict
+from ..core.interfaces import MemoryStore, Validator
+from ..core.models import (
+    AgentAnswer,
+    Document,
+    MemoryRecord,
+    ValidatedAnswer,
+    Validation,
+    Verdict,
+)
 from ..agent.orchestrator import ReActAgent
 
 _VERDICT_RANK = {Verdict.GROUNDED: 2, Verdict.WEAK: 1, Verdict.UNGROUNDED: 0}
@@ -26,8 +33,27 @@ def answer_with_validation(
     document: Document,
     question: str,
     max_retries: int = 1,
+    memory: MemoryStore | None = None,
+    memory_threshold: float = 0.8,
 ) -> ValidatedAnswer:
-    """Run the agent, validate, and retry once with feedback if it is not grounded."""
+    """Run the agent, validate, and retry once with feedback if it is not grounded.
+
+    When ``memory`` is given, a near-duplicate question (similarity >= ``memory_threshold``)
+    that was previously answered *and grounded* is served straight from memory without
+    running the agent, and every outcome is recorded for next time (DESIGN.md §3.6). With no
+    memory the behaviour is exactly the single-run pipeline.
+    """
+    document_id = document.source_path
+
+    if memory is not None:
+        hit = memory.best_match(document_id, question)
+        if (
+            hit is not None
+            and hit[1] >= memory_threshold
+            and hit[0].verdict == Verdict.GROUNDED.value
+        ):
+            return _served_from_memory(hit[0], question)
+
     chunks_by_id = {chunk.id: chunk for chunk in document.chunks}
     attempts: list[tuple[AgentAnswer, Validation]] = []
     feedback: str | None = None
@@ -43,8 +69,44 @@ def answer_with_validation(
     best_answer, best_validation = max(
         attempts, key=lambda pair: (_VERDICT_RANK[pair[1].verdict], pair[1].confidence)
     )
+
+    if memory is not None:
+        memory.record(_to_memory_record(document_id, best_answer, best_validation))
+
     return ValidatedAnswer(
         answer=best_answer, validation=best_validation, attempts=len(attempts)
+    )
+
+
+def _served_from_memory(record: MemoryRecord, question: str) -> ValidatedAnswer:
+    """Reconstruct a result from a recalled record; ``attempts=0`` marks 'not re-run'."""
+    answer = AgentAnswer(
+        question=question,
+        answer=record.answer,
+        cited_chunk_ids=record.cited_chunk_ids,
+        steps=0,
+        trace=("served from memory",),
+    )
+    validation = Validation(
+        verdict=Verdict(record.verdict),
+        confidence=record.confidence,
+        detail="recalled from memory",
+    )
+    return ValidatedAnswer(answer=answer, validation=validation, attempts=0)
+
+
+def _to_memory_record(
+    document_id: str,
+    answer: AgentAnswer,
+    validation: Validation,
+) -> MemoryRecord:
+    return MemoryRecord(
+        document_id=document_id,
+        question=answer.question,
+        answer=answer.answer,
+        verdict=validation.verdict.value,
+        confidence=validation.confidence,
+        cited_chunk_ids=answer.cited_chunk_ids,
     )
 
 

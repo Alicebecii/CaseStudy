@@ -10,8 +10,16 @@ from __future__ import annotations
 from agentic_extraction.agent import create_agent
 from agentic_extraction.config import ProviderName, Settings
 from agentic_extraction.core.interfaces import Validator
-from agentic_extraction.core.models import AgentAnswer, Chunk, Document, Validation, Verdict
+from agentic_extraction.core.models import (
+    AgentAnswer,
+    Chunk,
+    Document,
+    MemoryRecord,
+    Validation,
+    Verdict,
+)
 from agentic_extraction.llm import MockLLMProvider
+from agentic_extraction.memory import JsonMemoryStore
 from agentic_extraction.retrieval import BM25Retriever
 from agentic_extraction.validator import (
     CompositeValidator,
@@ -200,3 +208,50 @@ def test_pipeline_returns_best_effort_when_retry_also_fails() -> None:
     result = answer_with_validation(_agent(llm), GroundingValidator(), _document(), "q")
     assert result.attempts == 2
     assert result.validation.verdict is not Verdict.GROUNDED  # flagged, not dressed up
+
+
+# -------------------------------------------------------------------- memory wiring
+
+
+def test_pipeline_shortcuts_on_grounded_duplicate(tmp_path) -> None:
+    store = JsonMemoryStore(tmp_path / "mem.jsonl")
+    store.record(MemoryRecord(
+        document_id="x.pdf", question="What was the revenue?",
+        answer="Revenue was 100 million lira [c0].", verdict="grounded",
+        confidence=0.9, cited_chunk_ids=("c0",),
+    ))
+    llm = MockLLMProvider(responses=[])  # would raise if the agent actually ran
+    result = answer_with_validation(
+        _agent(llm), GroundingValidator(), _document(), "What was the revenue?", memory=store
+    )
+    assert result.attempts == 0  # served from memory, agent not run
+    assert result.answer.answer == "Revenue was 100 million lira [c0]."
+    assert llm.calls == []  # proves the agent never called the LLM
+
+
+def test_pipeline_records_outcome_after_answering(tmp_path) -> None:
+    store = JsonMemoryStore(tmp_path / "mem.jsonl")
+    llm = MockLLMProvider(responses=[
+        "The annual revenue grew to one hundred million lira in 2023 [c0].",
+    ])
+    answer_with_validation(_agent(llm), GroundingValidator(), _document(), "revenue?", memory=store)
+    recalled = store.recall("x.pdf", "revenue?")
+    assert len(recalled) == 1
+    assert recalled[0].verdict == "grounded"
+
+
+def test_pipeline_ignores_low_similarity_memory(tmp_path) -> None:
+    # A prior grounded answer to an unrelated question must NOT short-cut.
+    store = JsonMemoryStore(tmp_path / "mem.jsonl")
+    store.record(MemoryRecord(
+        document_id="x.pdf", question="How many employees are there?",
+        answer="Ten thousand [c1].", verdict="grounded", confidence=0.9, cited_chunk_ids=("c1",),
+    ))
+    llm = MockLLMProvider(responses=[
+        "The annual revenue grew to one hundred million lira in 2023 [c0].",
+    ])
+    result = answer_with_validation(
+        _agent(llm), GroundingValidator(), _document(), "What was the revenue?", memory=store
+    )
+    assert result.attempts == 1  # ran the agent; did not reuse the unrelated answer
+    assert llm.calls  # the agent did call the LLM
