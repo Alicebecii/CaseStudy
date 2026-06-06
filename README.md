@@ -16,7 +16,7 @@ Built in small, checkpointed batches. Current state:
 - [x] LLM layer (mock + ollama + openai)
 - [x] Preprocessing (parse, outline, chunk)
 - [x] Retrieval (hybrid BM25 + dense)
-- [ ] Agent (tools + ReAct loop)
+- [x] Agent (tools + ReAct loop)
 - [ ] Validator + CLI
 - [ ] Tests, demo, technical note
 
