@@ -69,7 +69,7 @@ def parse_tool_protocol_response(text: str) -> LLMResponse:
     If a tool-call object can be recovered, return it as a ``tool_calls`` entry with no
     content. Otherwise the whole text is the final answer.
     """
-    obj = _extract_json_object(text)
+    obj = extract_json_object(text)
     if obj is not None:
         name = _first_present(obj, _NAME_KEYS)
         if isinstance(name, str) and name.strip():
@@ -89,12 +89,13 @@ def _first_present(obj: dict, keys: Sequence[str]) -> object:
     return None
 
 
-def _extract_json_object(text: str) -> dict | None:
+def extract_json_object(text: str) -> dict | None:
     """Best-effort extraction of a single JSON object from free-form model text.
 
     Tries a fenced ```json block first, then the first brace-balanced ``{...}`` span.
-    Returns ``None`` if nothing parses to a dict, which the caller reads as "no tool
-    call, this is prose".
+    Returns ``None`` if nothing parses to a dict. Shared by the text tool protocol (to
+    spot a tool call) and the LLM critic (to read its JSON verdict), so the lenient
+    parsing lives in one place.
     """
     candidates: list[str] = []
 

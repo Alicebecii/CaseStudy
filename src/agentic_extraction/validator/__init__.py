@@ -7,6 +7,8 @@ verdict (DESIGN.md §3.5). Use :func:`create_validator` to obtain the configured
 
 from __future__ import annotations
 
+from .composite import CompositeValidator
+from .critic import LLMCriticValidator
 from .factory import create_validator
 from .grounding import GroundingValidator
 from .pipeline import answer_with_validation
@@ -14,5 +16,7 @@ from .pipeline import answer_with_validation
 __all__ = [
     "create_validator",
     "GroundingValidator",
+    "LLMCriticValidator",
+    "CompositeValidator",
     "answer_with_validation",
 ]

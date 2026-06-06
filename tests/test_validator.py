@@ -8,12 +8,15 @@ we assert the whole answer→validate→retry flow offline.
 from __future__ import annotations
 
 from agentic_extraction.agent import create_agent
-from agentic_extraction.config import Settings
-from agentic_extraction.core.models import AgentAnswer, Chunk, Document, Verdict
+from agentic_extraction.config import ProviderName, Settings
+from agentic_extraction.core.interfaces import Validator
+from agentic_extraction.core.models import AgentAnswer, Chunk, Document, Validation, Verdict
 from agentic_extraction.llm import MockLLMProvider
 from agentic_extraction.retrieval import BM25Retriever
 from agentic_extraction.validator import (
+    CompositeValidator,
     GroundingValidator,
+    LLMCriticValidator,
     answer_with_validation,
     create_validator,
 )
@@ -66,6 +69,76 @@ def test_unresolved_citation_reported_in_detail() -> None:
 
 def test_create_validator_returns_grounding_validator() -> None:
     assert isinstance(create_validator(Settings()), GroundingValidator)
+
+
+# -------------------------------------------------------------------- llm critic
+
+
+def test_critic_reads_ungrounded_verdict_and_claims() -> None:
+    llm = MockLLMProvider(responses=[
+        '{"verdict": "ungrounded", "unsupported_claims": ["The app launched in Berlin."]}',
+    ])
+    answer = _answer("The company launched an app in Berlin [c0].", ("c0",))
+    result = LLMCriticValidator(llm).validate(answer, CHUNKS_BY_ID)
+    assert result.verdict is Verdict.UNGROUNDED
+    assert result.unsupported_claims == ("The app launched in Berlin.",)
+
+
+def test_critic_reads_grounded_verdict() -> None:
+    llm = MockLLMProvider(responses=['{"verdict": "grounded", "unsupported_claims": []}'])
+    answer = _answer("Revenue grew to 100 million lira [c0].", ("c0",))
+    assert LLMCriticValidator(llm).validate(answer, CHUNKS_BY_ID).verdict is Verdict.GROUNDED
+
+
+def test_critic_raises_no_objection_on_unparseable_reply() -> None:
+    # The mock's default reply is not JSON and names no objection: do not veto (the
+    # deterministic check remains the floor).
+    answer = _answer("Revenue grew to 100 million lira [c0].", ("c0",))
+    assert LLMCriticValidator(MockLLMProvider()).validate(answer, CHUNKS_BY_ID).verdict is Verdict.GROUNDED
+
+
+def test_critic_marks_uncited_answer_ungrounded_without_calling_llm() -> None:
+    llm = MockLLMProvider(responses=[])  # would raise if called
+    answer = _answer("Some claim with no citation.", cited=())
+    assert LLMCriticValidator(llm).validate(answer, CHUNKS_BY_ID).verdict is Verdict.UNGROUNDED
+
+
+# ---------------------------------------------------------------- composite
+
+
+class _FixedValidator(Validator):
+    def __init__(self, validation: Validation) -> None:
+        self._validation = validation
+
+    def validate(self, answer, chunks_by_id) -> Validation:
+        return self._validation
+
+
+def test_composite_takes_worst_verdict_and_unions_claims() -> None:
+    grounded = _FixedValidator(Validation(Verdict.GROUNDED, 0.9, ("a",)))
+    weak = _FixedValidator(Validation(Verdict.WEAK, 0.4, ("b",)))
+    result = CompositeValidator([grounded, weak]).validate(_answer("x", ("c0",)), CHUNKS_BY_ID)
+    assert result.verdict is Verdict.WEAK  # worst wins
+    assert set(result.unsupported_claims) == {"a", "b"}
+    assert result.confidence == 0.4  # min
+
+
+def test_composite_requires_a_validator() -> None:
+    try:
+        CompositeValidator([])
+    except ValueError:
+        return
+    raise AssertionError("empty CompositeValidator should raise")
+
+
+def test_factory_adds_critic_for_real_backend() -> None:
+    validator = create_validator(Settings(llm_provider=ProviderName.OLLAMA), llm=MockLLMProvider())
+    assert isinstance(validator, CompositeValidator)
+
+
+def test_factory_skips_critic_for_mock_backend() -> None:
+    validator = create_validator(Settings(llm_provider=ProviderName.MOCK), llm=MockLLMProvider())
+    assert isinstance(validator, GroundingValidator)
 
 
 # ----------------------------------------------------------------------- pipeline

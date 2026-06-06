@@ -16,7 +16,11 @@ from .factory import create_llm_provider
 from .mock_provider import MockLLMProvider
 from .ollama_provider import OllamaLLMProvider
 from .openai_provider import OpenAILLMProvider
-from .tool_protocol import parse_tool_protocol_response, render_tools_prompt
+from .tool_protocol import (
+    extract_json_object,
+    parse_tool_protocol_response,
+    render_tools_prompt,
+)
 
 __all__ = [
     "create_llm_provider",
@@ -25,4 +29,5 @@ __all__ = [
     "OpenAILLMProvider",
     "render_tools_prompt",
     "parse_tool_protocol_response",
+    "extract_json_object",
 ]
