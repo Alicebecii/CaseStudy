@@ -15,7 +15,7 @@ Built in small, checkpointed batches. Current state:
 - [x] Foundation: package skeleton, core contracts, configuration
 - [x] LLM layer (mock + ollama + openai)
 - [x] Preprocessing (parse, outline, chunk)
-- [ ] Retrieval (hybrid BM25 + dense)
+- [x] Retrieval (hybrid BM25 + dense)
 - [ ] Agent (tools + ReAct loop)
 - [ ] Validator + CLI
 - [ ] Tests, demo, technical note
