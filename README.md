@@ -8,29 +8,10 @@ actually hold up before the answer is trusted.
 > Not classic RAG. Instead of stuffing top-k chunks into one prompt and hoping, a
 > from-scratch ReAct loop *decides* what to look at, and grounding is verified, not assumed.
 
-```
-                  ┌──────────────┐      ┌─────────────────────┐
-   PDF ─────────▶ │ PREPROCESSING│ ───▶ │  HYBRID RETRIEVAL   │
-                  │ parse·outline│      │  BM25 + dense (RRF) │
-                  │ ·chunk       │      └──────────┬──────────┘
-                  └──────────────┘                 ▲ search()
-                                                   │
-   question ───────────────────────▶  ┌────────────┴────────────────────┐
-                                       │  AGENT - from-scratch ReAct loop │
-                                       │  think → act → observe → answer  │
-                                       │  tools: get_outline · search ·   │
-                                       │         read_section · read_page │
-                                       └────────────┬─────────────────────┘
-                                                    │ answer + [chunk_id] citations
-                                                    ▼
-                                       ┌──────────────────────────────────┐
-                                       │  VALIDATOR                        │
-                                       │  deterministic grounding + LLM    │
-                                       │  critic → grounded? else 1 retry  │
-                                       └────────────┬─────────────────────┘
-                                                    ▼
-                              answer · sources (chunk → page · section) · verdict
-```
+![Architecture: PDF → preprocessing → hybrid retrieval; a from-scratch ReAct agent
+(tools: get_outline, search, read_section, read_page) answers a question with citations;
+a validator (grounding check + LLM critic) verifies it, retrying once if not grounded,
+then emits answer · sources · verdict.](docs/architecture.png)
 
 Every swappable part (LLM, embedder, retriever, validator, memory) sits behind a small
 contract in `core/` and is wired in one place - so a backend can be added, removed, or
