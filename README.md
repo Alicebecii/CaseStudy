@@ -13,7 +13,7 @@ Built in small, checkpointed batches. Current state:
 
 - [x] Architecture design (`DESIGN.md`)
 - [x] Foundation: package skeleton, core contracts, configuration
-- [ ] LLM layer (mock + ollama + openai)
+- [x] LLM layer (mock + ollama + openai)
 - [ ] Preprocessing (parse, outline, chunk)
 - [ ] Retrieval (hybrid BM25 + dense)
 - [ ] Agent (tools + ReAct loop)
