@@ -353,6 +353,9 @@ def test_factory_builds_mock_by_default() -> None:
 
 
 def test_factory_builds_ollama_from_settings() -> None:
+    # The Ollama backend needs the optional `requests` dep ([ollama] extra); skip (not fail)
+    # when it isn't installed, so the suite stays green on a base install.
+    pytest.importorskip("requests")
     settings = Settings(llm_provider=ProviderName.OLLAMA, ollama_model="qwen2.5")
     provider = create_llm_provider(settings)
     assert isinstance(provider, OllamaLLMProvider)

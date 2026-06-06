@@ -112,6 +112,9 @@ pytest          # 118 tests, fully offline - no network, no API key, no model do
 The LLM and embedder are exercised through deterministic fakes, so the suite is fast and
 reproducible everywhere.
 
+> 👉 **New to the repo? [TESTING.md](TESTING.md) is a step-by-step guide** to run and verify
+> everything from a clean clone - offline checks, real-model runs, the demo, and the bonuses.
+
 ## Layout
 
 ```
