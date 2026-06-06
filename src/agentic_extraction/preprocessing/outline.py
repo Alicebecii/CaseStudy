@@ -21,17 +21,37 @@ from collections import Counter
 from collections.abc import Sequence
 
 from ..core.models import Section
-from .models import Heading, ParsedDocument, TextLine
+from .models import Heading, ParsedDocument, TextLine, TocEntry
 
 # A heading line is at most this many characters; longer lines are body text even if big.
 _MAX_HEADING_CHARS = 120
 
+# A multi-page document whose embedded outline has fewer than this many entries is
+# treated as having no usable outline (some PDFs ship a single bookmark - just the title).
+_MIN_USABLE_TOC_ENTRIES = 2
+_SHORT_DOC_PAGES = 2
+
 
 def detect_headings(parsed: ParsedDocument) -> tuple[Heading, ...]:
-    """Detect headings, preferring the embedded outline over typography."""
-    if parsed.toc:
+    """Detect headings, preferring the embedded outline over typography.
+
+    The embedded outline is authoritative *when it is usable*. Some PDFs carry a
+    degenerate outline - a single bookmark holding only the title - which would collapse
+    a long paper into one flat section. In that case we ignore it and fall back to
+    typography, which recovers the real structure (observed on real arXiv papers).
+    """
+    if parsed.toc and not _toc_is_degenerate(parsed.toc, parsed):
         return _headings_from_toc(parsed)
     return _headings_from_typography(parsed)
+
+
+def _toc_is_degenerate(toc: Sequence[TocEntry], parsed: ParsedDocument) -> bool:
+    """True when the embedded outline is too sparse to be a real table of contents.
+
+    A short document (a page or two) legitimately has few headings, so the sparsity test
+    only applies once a document is long enough that a near-empty outline is suspect.
+    """
+    return len(toc) < _MIN_USABLE_TOC_ENTRIES and parsed.n_pages > _SHORT_DOC_PAGES
 
 
 def build_outline(headings: Sequence[Heading]) -> tuple[Section, ...]:

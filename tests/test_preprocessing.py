@@ -133,6 +133,39 @@ def test_detect_headings_prefers_embedded_toc() -> None:
     assert headings[0].line_index == 0  # located the matching line
 
 
+def test_degenerate_toc_falls_back_to_typography() -> None:
+    # A long document whose embedded TOC is a single title bookmark: trust typography,
+    # which recovers the real sections, instead of collapsing into one flat section.
+    parsed = ParsedDocument(
+        source_path="x",
+        n_pages=20,
+        page_texts=("...",),
+        lines=(
+            _heading_line("The Paper Title", 22.0),
+            _heading_line("Introduction", 15.0),
+            _body("intro body text long enough to anchor the modal body font size here"),
+            _heading_line("Method", 15.0),
+            _body("method body text also long enough to weight the body font correctly"),
+        ),
+        toc=(TocEntry(title="The Paper Title", level=1, page=0),),
+    )
+    headings = detect_headings(parsed)
+    assert [h.title for h in headings] == ["The Paper Title", "Introduction", "Method"]
+
+
+def test_single_entry_toc_kept_for_short_document() -> None:
+    # On a genuinely short document a one-entry outline is plausible; don't override it.
+    parsed = ParsedDocument(
+        source_path="x",
+        n_pages=1,
+        page_texts=("...",),
+        lines=(_body("Overview", page=0), _body("some prose", page=0)),
+        toc=(TocEntry(title="Overview", level=1, page=0),),
+    )
+    headings = detect_headings(parsed)
+    assert [h.title for h in headings] == ["Overview"]
+
+
 def test_build_outline_nests_by_level() -> None:
     headings = (
         Heading("Title", level=1, page=0, line_index=0),
