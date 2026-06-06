@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local configuration and secrets
+.env
+
+# Caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Model and data caches
+.cache/
+
+# OS
+.DS_Store

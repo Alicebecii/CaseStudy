@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-extraction"
+version = "0.1.0"
+description = "Agentic multi-modal document question answering over PDFs"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pymupdf>=1.24",
+]
+
+# Optional dependency groups keep the base install light. A reviewer can install
+# only what they need: dense retrieval, a real LLM backend, or the dev tools.
+[project.optional-dependencies]
+dense = ["sentence-transformers>=2.2", "numpy>=1.24"]
+ollama = ["requests>=2.28"]
+openai = ["openai>=1.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+agentic-extract = "agentic_extraction.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Put the src package on the path for tests, so the suite runs without depending
+# on an editable install being present.
+pythonpath = ["src"]
