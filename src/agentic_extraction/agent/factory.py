@@ -10,7 +10,7 @@ from ..config import Settings
 from ..core.interfaces import LLMProvider, Retriever
 from ..core.models import Document
 from .orchestrator import ReActAgent
-from .prompts import build_system_prompt
+from .prompts import build_specialist_prompt, build_system_prompt
 from .tools import build_tools
 
 
@@ -20,14 +20,29 @@ def create_agent(
     llm: LLMProvider,
     settings: Settings,
 ) -> ReActAgent:
-    """Build a :class:`ReActAgent` with the document's tools and system prompt."""
-    tools = build_tools(document, retriever, settings)
-    system_prompt = build_system_prompt(document)
+    """Build a :class:`ReActAgent` with the document's tools and system prompt.
+
+    When ``settings.enable_specialist`` is set, a focused specialist sub-agent is built
+    (from the *base* tools only, so it cannot recurse) and exposed to the main agent as an
+    ``ask_specialist`` tool.
+    """
     valid_chunk_ids = frozenset(chunk.id for chunk in document.chunks)
+
+    specialist: ReActAgent | None = None
+    if settings.enable_specialist:
+        specialist = ReActAgent(
+            llm=llm,
+            tools=build_tools(document, retriever, settings),  # base tools only - no recursion
+            settings=settings,
+            system_prompt=build_specialist_prompt(document),
+            valid_chunk_ids=valid_chunk_ids,
+        )
+
+    tools = build_tools(document, retriever, settings, specialist=specialist)
     return ReActAgent(
         llm=llm,
         tools=tools,
         settings=settings,
-        system_prompt=system_prompt,
+        system_prompt=build_system_prompt(document, with_specialist=specialist is not None),
         valid_chunk_ids=valid_chunk_ids,
     )

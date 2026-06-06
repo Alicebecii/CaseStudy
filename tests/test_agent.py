@@ -14,6 +14,7 @@ from agentic_extraction.agent.tools import (
     ReadPageTool,
     ReadSectionTool,
     SearchTool,
+    SpecialistAgentTool,
 )
 from agentic_extraction.config import Settings
 from agentic_extraction.core.models import Chunk, Document, Section, ToolCall
@@ -157,3 +158,55 @@ def test_agent_resolves_chunk_ids_regardless_of_formatting() -> None:
     llm = MockLLMProvider(responses=["See [Chunk c2] on [p9] in section [1.3.1]."])
     answer = _agent(llm).answer("q")
     assert answer.cited_chunk_ids == ("c2",)
+
+
+# ---------------------------------------------------------------------- multi-agent
+
+
+def test_build_tools_without_specialist_has_four() -> None:
+    tools = build_tools(_document(), BM25Retriever(_document().chunks), Settings())
+    assert {t.spec.name for t in tools} == {"get_outline", "search", "read_section", "read_page"}
+
+
+def test_build_tools_with_specialist_adds_ask_specialist() -> None:
+    retriever = BM25Retriever(_document().chunks)
+    specialist = create_agent(_document(), retriever, MockLLMProvider(), Settings())
+    tools = build_tools(_document(), retriever, Settings(), specialist=specialist)
+    assert "ask_specialist" in {t.spec.name for t in tools}
+
+
+def test_specialist_uses_only_base_tools_no_recursion() -> None:
+    agent = _agent(MockLLMProvider(), enable_specialist=True)
+    specialist = agent._tools_by_name["ask_specialist"]._specialist
+    assert "ask_specialist" not in specialist._tools_by_name
+    assert set(specialist._tools_by_name) == {"get_outline", "search", "read_section", "read_page"}
+
+
+def test_specialist_tool_delegates_and_returns_findings() -> None:
+    specialist_llm = MockLLMProvider(responses=["The dataset has 10000 labelled samples [c2]."])
+    specialist = create_agent(_document(), BM25Retriever(_document().chunks), specialist_llm, Settings())
+    result = SpecialistAgentTool(specialist).run(sub_question="How big is the dataset?")
+    assert result.ok
+    assert "[c2]" in result.content and "Cited: c2" in result.content
+
+
+def test_system_prompt_mentions_specialist_only_when_enabled() -> None:
+    from agentic_extraction.agent.prompts import build_system_prompt
+    doc = _document()
+    assert "ask_specialist" not in build_system_prompt(doc)  # default unchanged
+    assert "ask_specialist" in build_system_prompt(doc, with_specialist=True)
+
+
+def test_generalist_delegates_to_specialist_via_one_shared_llm() -> None:
+    # One mock drives both agents in nested call order:
+    #   1) generalist decides to delegate
+    #   2) specialist answers its sub-question
+    #   3) generalist writes the final answer using the specialist's finding
+    llm = MockLLMProvider(responses=[
+        ToolCall(name="ask_specialist", arguments={"sub_question": "How big is the dataset?"}),
+        "The dataset has 10000 labelled samples [c2].",
+        "Per the specialist, the dataset has 10000 samples [c2].",
+    ])
+    answer = _agent(llm, enable_specialist=True).answer("Describe the dataset.")
+    assert answer.cited_chunk_ids == ("c2",)
+    assert any("ask_specialist" in line for line in answer.trace)

@@ -18,10 +18,14 @@ a whole step on a cosmetic mismatch.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from ..config import Settings
 from ..core.interfaces import Retriever, Tool
 from ..core.models import Chunk, Document, Section, ToolResult, ToolSpec
+
+if TYPE_CHECKING:
+    from .orchestrator import ReActAgent
 
 # Caps so a single tool result can never blow up the model's context window.
 _SECTION_CHAR_CAP = 4000
@@ -29,14 +33,26 @@ _PAGE_CHAR_CAP = 4000
 _SNIPPET_CHARS = 200
 
 
-def build_tools(document: Document, retriever: Retriever, settings: Settings) -> list[Tool]:
-    """Assemble the agent's toolset for one document."""
-    return [
+def build_tools(
+    document: Document,
+    retriever: Retriever,
+    settings: Settings,
+    specialist: "ReActAgent | None" = None,
+) -> list[Tool]:
+    """Assemble the agent's toolset for one document.
+
+    When a ``specialist`` sub-agent is given, an ``ask_specialist`` tool is appended so the
+    agent can delegate a focused sub-question to it (multi-agent, DESIGN.md §3.4).
+    """
+    tools: list[Tool] = [
         OutlineTool(document),
         SearchTool(retriever, settings.top_k),
         ReadSectionTool(document),
         ReadPageTool(document),
     ]
+    if specialist is not None:
+        tools.append(SpecialistAgentTool(specialist))
+    return tools
 
 
 class OutlineTool(Tool):
@@ -171,6 +187,41 @@ class ReadPageTool(Tool):
             )
         text = self._document.page_texts[page] if page < len(self._document.page_texts) else ""
         return ToolResult(content=text[:_PAGE_CHAR_CAP] if text else "(this page has no text)")
+
+
+class SpecialistAgentTool(Tool):
+    """Delegate a focused sub-question to a specialist sub-agent.
+
+    The specialist is itself a :class:`ReActAgent` (base tools + a focused prompt). This is
+    the multi-agent seam: the tool boundary IS the agent boundary (DESIGN.md §3.4), so a
+    second agent is added without touching the orchestrator loop. The specialist is built
+    with base tools only, so it cannot call this tool - no recursion.
+    """
+
+    def __init__(self, specialist: "ReActAgent") -> None:
+        self._specialist = specialist
+
+    @property
+    def spec(self) -> ToolSpec:
+        return ToolSpec(
+            name="ask_specialist",
+            description="Delegate ONE narrow sub-question to a retrieval specialist that "
+            "gathers evidence and returns a concise, cited finding. Useful for breaking a "
+            "complex question into parts.",
+            parameters={
+                "type": "object",
+                "properties": {"sub_question": {"type": "string"}},
+                "required": ["sub_question"],
+            },
+        )
+
+    def run(self, **kwargs: object) -> ToolResult:
+        sub_question = _first(kwargs, "sub_question", "question", "q")
+        if not isinstance(sub_question, str) or not sub_question.strip():
+            return ToolResult(content="ask_specialist needs a 'sub_question' string.", ok=False)
+        answer = self._specialist.answer(sub_question)
+        cited = ", ".join(answer.cited_chunk_ids) if answer.cited_chunk_ids else "(none)"
+        return ToolResult(content=f"{answer.answer}\n\nCited: {cited}")
 
 
 # --------------------------------------------------------------------------- helpers

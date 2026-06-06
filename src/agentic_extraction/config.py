@@ -34,6 +34,14 @@ def _get_int(name: str, default: int) -> int:
         raise ConfigError(f"{name} must be an integer, got {raw!r}") from exc
 
 
+def _get_bool(name: str, default: bool) -> bool:
+    """Read a boolean environment variable (1/true/yes/on are true), else ``default``."""
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class Settings:
     """Typed view of the environment.
@@ -63,6 +71,8 @@ class Settings:
 
     # Agent loop
     max_steps: int = 8
+    # When true, the agent gains an "ask_specialist" tool backed by a focused sub-agent.
+    enable_specialist: bool = False
 
     # Chunking
     chunk_size: int = 800
@@ -90,6 +100,7 @@ class Settings:
             top_k=_get_int("TOP_K", Settings.top_k),
             rrf_k=_get_int("RRF_K", Settings.rrf_k),
             max_steps=_get_int("MAX_STEPS", Settings.max_steps),
+            enable_specialist=_get_bool("ENABLE_SPECIALIST", Settings.enable_specialist),
             chunk_size=_get_int("CHUNK_SIZE", Settings.chunk_size),
             chunk_overlap=_get_int("CHUNK_OVERLAP", Settings.chunk_overlap),
         )

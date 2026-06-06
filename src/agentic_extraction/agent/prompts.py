@@ -33,10 +33,41 @@ claim. If you cannot find supporting text, search again or say the document does
 the answer rather than guessing."""
 
 
-def build_system_prompt(document: Document) -> str:
-    """Build the system prompt, grounded in this document's basic facts."""
-    return _SYSTEM_TEMPLATE.format(
+_SPECIALIST_TEMPLATE = """\
+You are a focused retrieval specialist working over a single document:
+{name} ({n_pages} pages). You are given ONE narrow sub-question by a coordinating agent.
+
+Use the tools (get_outline, search, read_section, read_page) to find the evidence that
+answers exactly that sub-question - nothing broader. Then reply with a concise finding in
+plain prose, citing each fact with the exact [chunk_id] from the tool results. Do not
+editorialise or restate the larger task; report only what the sources support, or say the
+document does not contain it."""
+
+
+_SPECIALIST_HINT = (
+    "\n\nYou also have ask_specialist: for a question with several distinct parts, delegate "
+    "each part as a sub_question to gather its cited evidence, then synthesise the findings - "
+    "prefer this over one broad search when a question clearly has multiple parts."
+)
+
+
+def build_system_prompt(document: Document, with_specialist: bool = False) -> str:
+    """Build the generalist system prompt, grounded in this document's basic facts.
+
+    ``with_specialist`` appends guidance for the ``ask_specialist`` tool; it defaults to
+    ``False`` so the prompt is unchanged unless a specialist sub-agent is actually present.
+    """
+    prompt = _SYSTEM_TEMPLATE.format(
         name=os.path.basename(document.source_path) or "document",
         n_pages=document.n_pages,
         n_sections=len(document.outline),
+    )
+    return prompt + _SPECIALIST_HINT if with_specialist else prompt
+
+
+def build_specialist_prompt(document: Document) -> str:
+    """Build the focused prompt for the evidence-gathering specialist sub-agent."""
+    return _SPECIALIST_TEMPLATE.format(
+        name=os.path.basename(document.source_path) or "document",
+        n_pages=document.n_pages,
     )
