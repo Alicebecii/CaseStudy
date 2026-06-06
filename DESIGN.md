@@ -227,11 +227,12 @@ Yes. Two useful, distinct scopes:
   related questions. We keep it as an explicit, inspectable store rather than an opaque
   vector cache so its effect on answers stays auditable, consistent with principle #4.
 
-The long-term store ships in the MVP as a functional extension point
-(`memory/store.py`: an append-only `JsonMemoryStore` behind the `MemoryStore` contract,
-with `record`/`recall`). It is tested on its own but not yet wired into the loop - doing
-that wiring (recall-to-short-cut, retrieval seeding above) is the cross-task-learning
-bonus, and the store is what makes it a small addition rather than a redesign.
+The long-term store ships as an append-only `JsonMemoryStore` behind the `MemoryStore`
+contract (`memory/store.py`), and it is **wired into the pipeline** (`validator/pipeline.py`,
+opt-in via `--memory PATH`): before answering, a near-duplicate question that was previously
+answered *and* grounded is served straight from memory (no agent run); every outcome is then
+recorded. The remaining, larger step - seeding retrieval with chunks that previously answered
+related questions - is the natural next extension the same store enables.
 
 ---
 
@@ -241,15 +242,22 @@ One module per concern, matching the code-quality rubric:
 
 ```
 src/agentic_extraction/
+  core/            data shapes (models.py) · contracts (interfaces.py) · errors.py
   config.py        env-driven settings; selects the LLM provider + models
-  preprocessing/   pdf_parser.py · outline.py · chunker.py
-  retrieval/       bm25.py · dense.py · hybrid.py · index.py
-  llm/             base.py (ABC) · mock_provider.py · ollama_provider.py · openai_provider.py
-  agent/           tools.py · orchestrator.py
-  validator/       grounding.py
-  memory/          store.py      (extension point)
+  preprocessing/   pdf_parser.py · outline.py · chunker.py · loader.py
+  retrieval/       bm25.py · dense.py · embedder.py · fusion.py · hybrid.py · factory.py
+  llm/             mock/ollama/openai providers · tool_protocol.py · factory.py
+  agent/           tools.py · prompts.py · orchestrator.py · factory.py
+  validator/       grounding.py · critic.py · composite.py · pipeline.py · factory.py
+  memory/          store.py      (JsonMemoryStore; wired into the pipeline via --memory)
+  evaluation.py    scoring answers against a gold Q&A set
   cli.py           --pdf <path> --question "<q>"
 ```
+
+The contracts live in `core/interfaces.py` and concrete implementations are wired in a
+per-package `factory.py`. (Bonus features described above as extension points - the
+multi-agent specialist, the vision `view_page` tool, and the memory wiring - were
+subsequently implemented; see the README and TESTING.md.)
 
 Dependencies point one direction: `preprocessing -> retrieval -> agent -> validator -> cli`.
 `llm` is a leaf depended on by `agent`/`validator`; nothing depends back on the CLI.
