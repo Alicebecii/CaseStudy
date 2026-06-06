@@ -1,90 +1,135 @@
 # Agentic Multi-Modal Document Q&A
 
-An agent that answers questions over long PDF documents by navigating their
-structure, retrieving evidence, and verifying its own answers. See
-[DESIGN.md](DESIGN.md) for the architecture and the reasoning behind each choice,
-and [TECHNICAL_NOTE.md](TECHNICAL_NOTE.md) for the two most important design decisions.
+Answer questions over long PDFs with an agent that **reads like a person** - it skims the
+table of contents, searches for evidence, reads the relevant section, then answers with
+inline `[chunk_id]` citations - and a **separate validator** checks that those citations
+actually hold up before the answer is trusted.
 
-Instead of stuffing top-k chunks into one prompt (classic RAG), a from-scratch
-ReAct agent reads the way a person does: it skims the table of contents, searches
-for evidence, reads the relevant section, then answers with inline `[chunk_id]`
-citations - and a separate validator checks that those citations actually hold up.
+> Not classic RAG. Instead of stuffing top-k chunks into one prompt and hoping, a
+> from-scratch ReAct loop *decides* what to look at, and grounding is verified, not assumed.
 
-## Install
+```
+                  ┌──────────────┐      ┌─────────────────────┐
+   PDF ─────────▶ │ PREPROCESSING│ ───▶ │  HYBRID RETRIEVAL   │
+                  │ parse·outline│      │  BM25 + dense (RRF) │
+                  │ ·chunk       │      └──────────┬──────────┘
+                  └──────────────┘                 ▲ search()
+                                                   │
+   question ───────────────────────▶  ┌────────────┴────────────────────┐
+                                       │  AGENT - from-scratch ReAct loop │
+                                       │  think → act → observe → answer  │
+                                       │  tools: get_outline · search ·   │
+                                       │         read_section · read_page │
+                                       └────────────┬─────────────────────┘
+                                                    │ answer + [chunk_id] citations
+                                                    ▼
+                                       ┌──────────────────────────────────┐
+                                       │  VALIDATOR                        │
+                                       │  deterministic grounding + LLM    │
+                                       │  critic → grounded? else 1 retry  │
+                                       └────────────┬─────────────────────┘
+                                                    ▼
+                              answer · sources (chunk → page · section) · verdict
+```
 
-Requires Python 3.10+. The base install is light; heavier features are opt-in extras.
+Every swappable part (LLM, embedder, retriever, validator, memory) sits behind a small
+contract in `core/` and is wired in one place - so a backend can be added, removed, or
+rewritten without rippling across callers. See **[DESIGN.md](DESIGN.md)** for the full
+rationale and trade-offs, and **[TECHNICAL_NOTE.md](TECHNICAL_NOTE.md)** for the two key
+decisions.
+
+## Capabilities
+
+| Required (MVP) | | Bonus | |
+|---|---|---|---|
+| PDF input + text extraction | ✅ | Structured outline → JSON | ✅ |
+| Retrieval (BM25 + dense, RRF) | ✅ | Evaluation harness (accuracy) | ✅ |
+| Agent loop with tool-calling | ✅ | Cross-run memory | ✅ |
+| Validation layer | ✅ | Multi-agent (specialist sub-agent) | ✅ |
+| CLI (`--pdf` `--question`) | ✅ | Visual content (vision tool) | ✅ |
+
+Runs offline with zero setup (mock backend + BM25), or with a free local model (Ollama)
+or the OpenAI API by changing one environment variable.
+
+## Quickstart
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dense,dev]"      # dense retrieval + test tools
-# optional backends:
-pip install -e ".[ollama]"          # local models via Ollama
-pip install -e ".[openai]"          # the OpenAI API
+pip install -e ".[dense,dev]"          # base + dense retrieval + tests
+#   ...add ".[ollama]" for local models, ".[openai]" for the OpenAI API
+
+# Ask a question (local model on Ollama):
+LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5 \
+  agentic-extract --pdf paper.pdf --question "What framework does the paper propose?"
 ```
 
-With no extras the system still runs: it falls back to BM25-only retrieval and the
-mock LLM backend, so it works offline with no model download and no API key.
+### Example output
 
-## Run
+```
+The paper proposes a framework that organises the reviewed methods by the
+objective they pursue [c79], and shows how it can explore methods from the
+perspective of objectives, targets, and prescribed processes [c93].
+
+Sources:
+  [c79] p14  FRAMEWORK > Framework components
+  [c93] p16  FRAMEWORK > Framework usage
+
+Validation: grounded (confidence 0.83, attempts 1)
+```
+
+Add `--show-trace` to see the agent's steps (`get_outline → search → final answer`).
+A real, unedited multi-question run over two PDFs lives in
+**[examples/demo_output.md](examples/demo_output.md)**.
+
+## Backends
+
+Selected by environment variables (every value has a safe default - see
+[.env.example](.env.example)):
 
 ```bash
-agentic-extract --pdf path/to/document.pdf --question "Your question?"
-# show the agent's step-by-step reasoning:
-agentic-extract --pdf path/to/document.pdf --question "Your question?" --show-trace
-# dump the document's structured outline as JSON (no question needed):
-agentic-extract --pdf path/to/document.pdf --outline-json
-# enable cross-run memory: recall a prior grounded answer to a near-duplicate
-# question (served instantly), and record each outcome for next time:
-agentic-extract --pdf path/to/document.pdf --question "..." --memory mem.jsonl
+LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5  agentic-extract ...   # free, local, on a GPU
+LLM_PROVIDER=openai OPENAI_API_KEY=sk-...  agentic-extract ...   # hosted, for verification
+#                              (default)    agentic-extract ...   # mock: offline, for CI
 ```
 
-The command prints the answer, its sources (cited chunk → page and section), and a
-validation verdict (`grounded` / `weak` / `ungrounded`) with a confidence score.
-
-### Choosing a backend
-
-The backend is selected by environment variables (every value has a safe default;
-see [.env.example](.env.example)). Copy it to `.env` and adjust, or set inline:
+## Other commands & optional features
 
 ```bash
-# Local model on Ollama (free, runs on a GPU):
-LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5 agentic-extract --pdf doc.pdf --question "..."
+# Structured outline as JSON (no model needed):
+agentic-extract --pdf paper.pdf --outline-json
 
-# OpenAI (used for a stronger final-verification run):
-LLM_PROVIDER=openai OPENAI_API_KEY=sk-... agentic-extract --pdf doc.pdf --question "..."
+# Cross-run memory: a prior grounded answer to a near-duplicate question is served instantly:
+agentic-extract --pdf paper.pdf --question "..." --memory mem.jsonl
 
-# Mock backend (default): deterministic, offline - for wiring/CI, not real answers.
-agentic-extract --pdf doc.pdf --question "..."
+# Accuracy measurement over a gold Q&A set:
+python examples/evaluate.py            # uses examples/gold.json
+
+# Multi-agent: the main agent can delegate a sub-question to a specialist sub-agent:
+ENABLE_SPECIALIST=1 agentic-extract --pdf paper.pdf --question "..."
+
+# Vision: render a page and ask a vision model about figures/tables (after `ollama pull llava`):
+OLLAMA_VISION_MODEL=llava agentic-extract --pdf paper.pdf --question "Describe the diagram on page 14"
 ```
 
-Optional capabilities, all opt-in and off by default:
-`ENABLE_SPECIALIST=1` adds a specialist sub-agent the main agent can delegate to;
-`OLLAMA_VISION_MODEL=llava` (after `ollama pull llava`) adds a `view_page` tool that renders
-a page and asks a vision model about figures/tables; `--memory PATH` enables cross-run memory.
+All optional features are off by default - with no flags or env vars, behaviour is identical
+to the base system.
 
-## Demo
+## Reading the validation verdict
 
-[`examples/demo_output.md`](examples/demo_output.md) is a real, unedited run of the
-agent (on `qwen2.5` via Ollama) over two documents - the Turkish assignment brief and
-an open-access English paper - with three questions each. Regenerate it with:
-
-```bash
-LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5 python examples/run_demo.py
-```
-
-The validation verdicts there are strict and honest: the deterministic check certifies
-an answer only when its cited chunks' text actually supports the claims, so it flags
-loosely-paraphrased, mis-cited, or cross-lingual answers. That conservatism is the
-reliability layer working as designed (see the note at the top of the demo file).
+The verdict is **deliberately strict and honest**: the deterministic check certifies an
+answer (`grounded`) only when its cited chunks' text actually supports the claims, so it
+flags loosely-paraphrased, mis-cited, or cross-lingual answers as `weak`/`ungrounded` - and
+on a failure the agent gets one bounded retry. That conservatism *is* the reliability layer
+working; refusing to over-claim is a feature, not a bug.
 
 ## Test
 
 ```bash
-pytest            # ~90 unit tests, fully offline (mock backend, fake embedder/clients)
+pytest          # 118 tests, fully offline - no network, no API key, no model download
 ```
 
-The suite needs no network, no API key, and no model download: the LLM and embedder
-are exercised through deterministic fakes, so it is fast and reproducible.
+The LLM and embedder are exercised through deterministic fakes, so the suite is fast and
+reproducible everywhere.
 
 ## Layout
 
@@ -92,19 +137,14 @@ are exercised through deterministic fakes, so it is fast and reproducible.
 src/agentic_extraction/
   core/          shared data shapes, interfaces, and errors (depended on by all)
   config.py      typed settings read from the environment
-  preprocessing/ PDF parsing, outline, section-aware chunking
+  preprocessing/ PDF parsing, outline detection, section-aware chunking
   retrieval/     BM25, dense, hybrid (RRF) fusion behind one Retriever
-  llm/           pluggable LLM backends (mock, ollama, openai) + tool protocol
-  agent/         four navigation tools and the from-scratch ReAct orchestrator
-  validator/     deterministic grounding check + optional LLM critic
+  llm/           pluggable backends (mock · ollama · openai) + a uniform tool protocol
+  agent/         four navigation tools + the from-scratch ReAct orchestrator
+  validator/     deterministic grounding check + optional LLM critic, with one retry
   memory/        cross-run memory store (recall/record, opt-in via --memory)
   evaluation.py  scoring of answers against a gold Q&A set
-  cli.py         command line entry point
-examples/        run_demo.py + captured demo_output.md (+ a CC-BY sample paper)
+  cli.py         command-line entry point (the outer error boundary)
+examples/        run_demo.py · evaluate.py · captured demo_output.md · a CC-BY sample paper
 tests/           offline unit tests for every layer
 ```
-
-Every swappable part sits behind a small contract in `core/` and is wired in one
-place (a per-package factory), so an implementation can be added, removed, or
-rewritten without rippling across callers. See [DESIGN.md](DESIGN.md) for the full
-rationale and trade-offs.
