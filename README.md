@@ -17,7 +17,7 @@ Built in small, checkpointed batches. Current state:
 - [x] Preprocessing (parse, outline, chunk)
 - [x] Retrieval (hybrid BM25 + dense)
 - [x] Agent (tools + ReAct loop)
-- [ ] Validator + CLI
+- [x] Validator + CLI
 - [ ] Tests, demo, technical note
 
 ## Layout

@@ -50,11 +50,15 @@ class ReActAgent:
         self._max_steps = settings.max_steps
         self._system_prompt = system_prompt
 
-    def answer(self, question: str) -> AgentAnswer:
+    def answer(self, question: str, feedback: str | None = None) -> AgentAnswer:
         messages = [
             Message(role=Role.SYSTEM, content=self._system_prompt),
             Message(role=Role.USER, content=question),
         ]
+        # On a retry, the validator's critique of the previous attempt is fed back in so the
+        # agent can search again or qualify its claims (DESIGN.md §3.5).
+        if feedback:
+            messages.append(Message(role=Role.USER, content=feedback))
         trace: list[str] = []
 
         for step in range(1, self._max_steps + 1):

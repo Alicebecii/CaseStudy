@@ -178,3 +178,16 @@ class Validation:
     confidence: float
     unsupported_claims: tuple[str, ...] = ()
     detail: str = ""
+
+
+@dataclass(frozen=True)
+class ValidatedAnswer:
+    """The system's terminal output: an answer paired with its grounding verdict.
+
+    ``attempts`` records how many times the agent was run (an ungrounded first answer
+    triggers a bounded retry), so a caller can see whether the answer needed correcting.
+    """
+
+    answer: AgentAnswer
+    validation: Validation
+    attempts: int = 1
