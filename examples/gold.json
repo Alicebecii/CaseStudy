@@ -1,0 +1,20 @@
+{
+  "pdf": "examples/data/peerj-cs-1097.pdf",
+  "questions": [
+    {
+      "question": "What framework does the paper propose to characterize the methods it reviews?",
+      "expected_keywords": ["framework", "objective"],
+      "expected_section": "FRAMEWORK"
+    },
+    {
+      "question": "What future research directions or gaps does the paper identify?",
+      "expected_keywords": ["future", "research"],
+      "expected_section": "RESEARCH GAPS"
+    },
+    {
+      "question": "What review method does the paper use to study prescriptive process monitoring?",
+      "expected_keywords": ["systematic literature review"],
+      "expected_section": null
+    }
+  ]
+}
